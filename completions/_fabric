@@ -1,0 +1,58 @@
+#compdef fabric
+
+# Helper function to list available patterns
+_fabric_patterns() {
+    local patterns_dir="${HOME}/.config/fabric/patterns"
+    if [[ -d "$patterns_dir" ]]; then
+        _values 'patterns' ${$(ls "$patterns_dir"):-}
+    fi
+}
+
+# Helper function for language codes
+_fabric_languages() {
+    local languages=(
+        'en:English'
+        'es:Español'
+        'fr:French'
+        'de:German'
+        'it:Italian'
+        'pt:Portuguese'
+        'ru:Russian'
+        'jp:Japanese'
+        'ko:Korean'
+        'cn:Chinese'
+        'ar:Arabic'
+    )
+    _describe 'languages' languages
+}
+
+# Helper function for YouTube URL
+_fabric_youtube_url() {
+    local prefix="https://www.youtube.com/watch\?v\="
+    if [[ -prefix $prefix $words[$CURRENT] ]]; then
+        # If URL already starts with prefix, let user complete the video code
+        compadd -S '' -- $prefix
+    else
+        # Otherwise, add the prefix with no space after
+        compadd -S '' -- $prefix
+    fi
+}
+
+_fabric() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -C \
+        '-y[YouTube URL]:URL:_fabric_youtube_url' \
+        '--parameter[Select pattern]:pattern:_fabric_patterns' \
+        '-g[Select language]:language:_fabric_languages' \
+        '*: :->args'
+
+    case $state in
+        args)
+            # Additional argument handling if needed
+            ;;
+    esac
+}
+
+_fabric "$@"
