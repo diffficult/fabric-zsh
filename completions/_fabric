@@ -16,10 +16,19 @@ _fabric_patterns() {
 _fabric_languages() {
     local -a languages
     languages=(
-        'en' 'es' 'fr' 'de' 'it' 'pt'
-        'ru' 'jp' 'ko' 'cn' 'ar'
+        'en:English'
+        'es:Spanish'
+        'fr:French'
+        'de:German'
+        'it:Italian'
+        'pt:Portuguese'
+        'ru:Russian'
+        'jp:Japanese'
+        'ko:Korean'
+        'cn:Chinese'
+        'ar:Arabic'
     )
-    compadd -X "Available languages:" $languages
+    _describe -t languages 'output language' languages
 }
 
 # Cache the models in a temporary file
@@ -29,7 +38,6 @@ _fabric_cache_models() {
     local cache_time=0
     local cache_age=3600  # Cache validity in seconds (1 hour)
 
-    # Get cache file modification time if it exists
     if [[ -f "$cache_file" ]]; then
         if command -v stat >/dev/null 2>&1; then
             if stat -f %m "$cache_file" >/dev/null 2>&1; then
@@ -40,12 +48,10 @@ _fabric_cache_models() {
         fi
     fi
 
-    # Check if we need to update cache
     if [[ ! -f "$cache_file" ]] || (( current_time - cache_time > cache_age )); then
         fabric --listmodels 2>/dev/null > "$cache_file"
     fi
 
-    # Return cached content
     if [[ -f "$cache_file" ]]; then
         cat "$cache_file"
     fi
@@ -62,73 +68,52 @@ _fabric_models() {
         local current_provider=""
         
         for line in $models_raw; do
-            # Check if line is a provider header
-            if [[ $line == "Anthropic" || $line == "Groq" || $line == "OpenAI" ]]; then
-                current_provider=$line
-                continue
-            fi
-            
-            # Extract model name from lines with [number] prefix
             if [[ $line =~ '\[(.*?)\]\s+(.*)' ]]; then
                 local model_name="${match[2]}"
-                model_list+=("$model_name")
+                model_list+=("$model_name:${current_provider} model")
+            elif [[ $line == "Anthropic" || $line == "Groq" || $line == "OpenAI" ]]; then
+                current_provider=$line
             fi
         done
         
-        # If we got models, use them
         if (( ${#model_list} > 0 )); then
-            compadd -X "Available models:" $model_list
+            _describe -t models 'AI model' model_list
         else
-            # Fallback if parsing failed
-            compadd -X "Available models:" \
-                'claude-3-haiku-20240307' \
-                'claude-3-opus-20240229' \
-                'llama3-70b-8192' \
-                'mixtral-8x7b-32768' \
-                'gpt-4' \
-                'gpt-3.5-turbo'
+            local -a fallback_models=(
+                'claude-3-haiku-20240307:Anthropic model'
+                'claude-3-opus-20240229:Anthropic model'
+                'llama3-70b-8192:Groq model'
+                'mixtral-8x7b-32768:Groq model'
+                'gpt-4:OpenAI model'
+                'gpt-3.5-turbo:OpenAI model'
+            )
+            _describe -t models 'AI model' fallback_models
         fi
-    else
-        # Fallback if cache is empty
-        compadd -X "Available models:" \
-            'claude-3-haiku-20240307' \
-            'claude-3-opus-20240229' \
-            'llama3-70b-8192' \
-            'mixtral-8x7b-32768' \
-            'gpt-4' \
-            'gpt-3.5-turbo'
     fi
 }
 
+# Helper function for YouTube URL completion
+_fabric_youtube_url() {
+    local -a youtube_urls
+    youtube_urls=('https://www.youtube.com/watch?v=:YouTube video URL (replace with video code)')
+    _describe -t youtube 'YouTube URL' youtube_urls
+}
+
 _fabric() {
-    local context state line
-    typeset -A opt_args
+    local curcontext="$curcontext" state line ret=1
+    local -a args
+    
+    args=(
+        '-y[Process YouTube content]:URL:_fabric_youtube_url'
+        {-p,--pattern}'[Select pattern]:pattern:_fabric_patterns'
+        {-m,--model}'[Select AI model]:model:_fabric_models'
+        {-g,--language}'[Select output language]:language:_fabric_languages'
+        '--listmodels[List available AI models]'
+    )
 
-    _arguments -C \
-        '-y[Process YouTube content]' \
-        '--pattern[Select pattern]: :_fabric_patterns' \
-        '--model[Select AI model]: :_fabric_models' \
-        '-g[Select language]: :_fabric_languages' \
-        '*: :->args'
+    _arguments -C $args && ret=0
 
-    case $state in
-        args)
-            local -a remaining_opts
-            if [[ ${line[(i)--pattern]} -gt ${#line} ]]; then
-                remaining_opts+=('--pattern' 'Select processing pattern')
-            fi
-            if [[ ${line[(i)--model]} -gt ${#line} ]]; then
-                remaining_opts+=('--model' 'Select AI model')
-            fi
-            if [[ ${line[(i)-g]} -gt ${#line} ]]; then
-                remaining_opts+=('-g' 'Select language')
-            fi
-            
-            if (( ${#remaining_opts} > 0 )); then
-                _describe -t remaining-opts 'remaining options' remaining_opts
-            fi
-            ;;
-    esac
+    return ret
 }
 
 compdef _fabric fabric
